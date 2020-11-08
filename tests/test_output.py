@@ -1,10 +1,16 @@
 import argparse
+from pathlib import Path
+
+import mock
 import json
 import os
+import tempfile
+import io
 from tempfile import gettempdir
 from urllib.request import urlopen
 
 import pytest
+import requests
 
 from httpie.cli.argtypes import (
     PARSED_DEFAULT_FORMAT_OPTIONS,
@@ -30,6 +36,87 @@ def test_output_option(httpbin, stdout_isatty):
         actual_body = f.read()
 
     assert actual_body == expected_body
+
+
+class TestQuietFlag:
+
+    @pytest.mark.parametrize('argument_name', ['--quiet', '-q'])
+    def test_quiet(self, httpbin, argument_name):
+        env = MockEnvironment(
+            stdin_isatty=True,
+            stdout_isatty=True,
+            devnull=io.BytesIO()
+        )
+        r = http(argument_name, 'GET', httpbin.url + '/get', env=env)
+        assert env.stdout is env.devnull
+        assert env.stderr is env.devnull
+        assert HTTP_OK in r.devnull
+        assert r == ''
+        assert r.stderr == ''
+
+    @mock.patch('httpie.cli.argtypes.AuthCredentials._getpass',
+                new=lambda self, prompt: 'password')
+    def test_quiet_with_password_prompt(self, httpbin):
+        """
+        Tests whether httpie still prompts for a password when request
+        requires authentication and only username is provided
+
+        """
+        env = MockEnvironment(
+            stdin_isatty=True,
+            stdout_isatty=True,
+            devnull=io.BytesIO()
+        )
+        r = http(
+            '--quiet', '--auth', 'user', 'GET',
+            httpbin.url + '/basic-auth/user/password',
+            env=env
+        )
+        assert env.stdout is env.devnull
+        assert env.stderr is env.devnull
+        assert HTTP_OK in r.devnull
+        assert r == ''
+        assert r.stderr == ''
+
+    @pytest.mark.parametrize('argument_name', ['-h', '-b', '-v', '-p=hH'])
+    def test_quiet_with_explicit_output_options(self, httpbin, argument_name):
+        env = MockEnvironment(stdin_isatty=True, stdout_isatty=True)
+        r = http('--quiet', argument_name, httpbin.url + '/get', env=env)
+        assert env.stdout is env.devnull
+        assert env.stderr is env.devnull
+        assert r == ''
+        assert r.stderr == ''
+
+    @pytest.mark.parametrize('with_download', [True, False])
+    def test_quiet_with_output_redirection(self, httpbin, with_download):
+        url = httpbin + '/robots.txt'
+        output_path = Path('output.txt')
+        env = MockEnvironment()
+        orig_cwd = os.getcwd()
+        output = requests.get(url).text
+        extra_args = ['--download'] if with_download else []
+        with tempfile.TemporaryDirectory() as tmp_dirname:
+            os.chdir(tmp_dirname)
+            try:
+                assert os.listdir('.') == []
+                r = http(
+                    '--quiet',
+                    '--output', str(output_path),
+                    *extra_args,
+                    url,
+                    env=env
+                )
+                assert os.listdir('.') == [str(output_path)]
+                assert r == ''
+                assert r.stderr == ''
+                assert env.stderr is env.devnull
+                if with_download:
+                    assert env.stdout is env.devnull
+                else:
+                    assert env.stdout is not env.devnull  # --output swaps stdout.
+                assert output_path.read_text() == output
+            finally:
+                os.chdir(orig_cwd)
 
 
 class TestVerboseFlag:
