@@ -136,8 +136,10 @@ class HTTPieArgumentParser(argparse.ArgumentParser):
 
         """
         self.args.output_file_specified = bool(self.args.output_file)
+
         if self.args.download:
             # FIXME: Come up with a cleaner solution.
+
             if not self.args.output_file and not self.env.stdout_isatty:
                 # Use stdout as the download output file.
                 self.args.output_file = self.env.stdout
