@@ -179,7 +179,8 @@ def get_unique_filename(filename: str, exists=os.path.exists) -> str:
     while True:
         suffix = '-' + str(attempt) if attempt > 0 else ''
         try_filename = trim_filename_if_needed(filename, extra=len(suffix))
-        try_filename += suffix
+        name, extension = os.path.splitext(try_filename)
+        try_filename = name + suffix + extension
         if not exists(try_filename):
             return try_filename
         attempt += 1
@@ -256,23 +257,27 @@ class Downloader:
         except (KeyError, ValueError, TypeError):
             total_size = None
 
-        if os.path.isdir(self._output_dest):
-            new_file = self._get_output_file_from_response(
+        if not self._output_dest:
+            # no `--output, -o` provided
+            self._output_dest = self._get_output_file_from_response(
                 initial_url=initial_url,
                 final_response=final_response,
             )
-            os.path.splittext(new_file)[0]
-            self._output_dest += "/" + new_file.name
+            self.output_file = open(str(self._output_dest), 'a+b')
 
-        self.output_file = open(str(self._output_dest), 'a+b')
-
-        if not self.output_file:
-            self.output_file = self._get_output_file_from_response(
+        elif os.path.isdir(self._output_dest):
+            # `--output, -o` directory provided
+            new_file = str(self._get_output_file_from_response(
                 initial_url=initial_url,
                 final_response=final_response,
-            )
+            ))
+            self._output_dest += "/" + new_file
+            self.output_file = open(str(self._output_dest), 'a+b')
+
         else:
             # `--output, -o` provided
+            self.output_file = open(str(self._output_dest), 'a+b')
+
             if self._resume and final_response.status_code == PARTIAL_CONTENT:
                 total_size = parse_content_range(
                     final_response.headers.get('Content-Range'),
@@ -354,7 +359,7 @@ class Downloader:
                 content_type=final_response.headers.get('Content-Type'),
             )
         unique_filename = get_unique_filename(filename)
-        return open(unique_filename, mode='a+b')
+        return unique_filename
 
 
 class DownloadStatus:
