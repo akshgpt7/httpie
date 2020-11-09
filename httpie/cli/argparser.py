@@ -170,16 +170,17 @@ class HTTPieArgumentParser(argparse.ArgumentParser):
             # When not `--download`ing, then `--output` simply replaces
             # `stdout`. The file is opened for appending, which isn't what
             # we want in this case.
-            self.args.output_file.seek(0)
+            open_file = open(self.args.output_file, 'a+b')
+            open_file.seek(0)
             try:
-                self.args.output_file.truncate()
+                open_file.truncate()
             except IOError as e:
                 if e.errno == errno.EINVAL:
                     # E.g. /dev/null on Linux.
                     pass
                 else:
                     raise
-            self.env.stdout = self.args.output_file
+            self.env.stdout = open_file
             self.env.stdout_isatty = False
 
         if self.args.quiet:

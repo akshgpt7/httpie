@@ -179,8 +179,7 @@ def get_unique_filename(filename: str, exists=os.path.exists) -> str:
     while True:
         suffix = '-' + str(attempt) if attempt > 0 else ''
         try_filename = trim_filename_if_needed(filename, extra=len(suffix))
-        name, extension = os.path.splitext(try_filename)
-        try_filename = name + suffix + extension
+        try_filename += suffix
         if not exists(try_filename):
             return try_filename
         attempt += 1
@@ -190,7 +189,7 @@ class Downloader:
 
     def __init__(
         self,
-        output_file: IO = None,
+        output_file: str = "",
         resume: bool = False,
         progress_file: IO = sys.stderr
     ):
@@ -259,19 +258,19 @@ class Downloader:
 
         if not self._output_dest:
             # no `--output, -o` provided
-            self._output_dest = self._get_output_file_from_response(
+            self.output_file = self._get_output_file_from_response(
                 initial_url=initial_url,
                 final_response=final_response,
             )
-            self.output_file = open(str(self._output_dest), 'a+b')
 
-        elif os.path.isdir(self._output_dest):
+        elif os.path.isdir(str(self._output_dest)):
             # `--output, -o` directory provided
-            new_file = str(self._get_output_file_from_response(
+            new_file = self._get_output_file_from_response(
                 initial_url=initial_url,
                 final_response=final_response,
-            ))
-            self._output_dest += "/" + new_file
+            )
+            self._output_dest += "/" + new_file.name
+            new_file.close()
             self.output_file = open(str(self._output_dest), 'a+b')
 
         else:
@@ -359,7 +358,7 @@ class Downloader:
                 content_type=final_response.headers.get('Content-Type'),
             )
         unique_filename = get_unique_filename(filename)
-        return unique_filename
+        return open(unique_filename, 'a+b')
 
 
 class DownloadStatus:
