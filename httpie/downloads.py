@@ -206,6 +206,7 @@ class Downloader:
         self.finished = False
         self.status = DownloadStatus()
 
+        # output_dest: the string provided by the -o --output argument
         self._output_dest = output_file
         self.output_file = None
 
